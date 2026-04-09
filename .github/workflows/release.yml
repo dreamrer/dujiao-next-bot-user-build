@@ -1,0 +1,87 @@
+name: Build & Release Bot
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '版本号 (如 1.0.0)'
+        required: true
+        default: '1.0.0'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source (private repo)
+        uses: actions/checkout@v4
+        with:
+          repository: dreamrer/dujiao-bot
+          token: ${{ secrets.PRIVATE_REPO_TOKEN }}
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Build Linux amd64
+        env:
+          CGO_ENABLED: 0
+          GOOS: linux
+          GOARCH: amd64
+        run: |
+          go build -trimpath -ldflags="-s -w -X main.version=${{ inputs.version }}" \
+            -o tg-bot-linux-amd64 ./cmd/bot
+
+      - name: Build Linux arm64
+        env:
+          CGO_ENABLED: 0
+          GOOS: linux
+          GOARCH: arm64
+        run: |
+          go build -trimpath -ldflags="-s -w -X main.version=${{ inputs.version }}" \
+            -o tg-bot-linux-arm64 ./cmd/bot
+
+      - name: Prepare release files
+        run: |
+          mkdir -p release
+          cp tg-bot-linux-amd64 release/
+          cp tg-bot-linux-arm64 release/
+          cp bot-config.yml.example release/
+          cp docker-compose.bot.yml release/
+          cp build/bot/Dockerfile release/Dockerfile
+
+          cd release
+          tar -czf ../tg-bot-v${{ inputs.version }}-linux-amd64.tar.gz \
+            tg-bot-linux-amd64 bot-config.yml.example docker-compose.bot.yml Dockerfile
+          tar -czf ../tg-bot-v${{ inputs.version }}-linux-arm64.tar.gz \
+            tg-bot-linux-arm64 bot-config.yml.example docker-compose.bot.yml Dockerfile
+
+      - name: Checkout build repo
+        uses: actions/checkout@v4
+        with:
+          repository: dreamrer/dujiao-bot-bulid
+          token: ${{ secrets.PRIVATE_REPO_TOKEN }}
+          path: build-repo
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          repository: dreamrer/dujiao-bot-bulid
+          token: ${{ secrets.PRIVATE_REPO_TOKEN }}
+          tag_name: v${{ inputs.version }}
+          name: TG Bot v${{ inputs.version }}
+          body: |
+            ## TG Bot v${{ inputs.version }}
+
+            ### 下载
+            - `tg-bot-linux-amd64.tar.gz` - Linux 64位（大多数服务器）
+            - `tg-bot-linux-arm64.tar.gz` - Linux ARM64
+
+            ### 部署步骤
+            1. 解压：`tar -xzf tg-bot-v${{ inputs.version }}-linux-amd64.tar.gz`
+            2. 复制配置：`cp bot-config.yml.example bot-config.yml`
+            3. 编辑 `bot-config.yml` 填入你的配置
+            4. 运行：`./tg-bot-linux-amd64 --config bot-config.yml`
+          files: |
+            tg-bot-v${{ inputs.version }}-linux-amd64.tar.gz
+            tg-bot-v${{ inputs.version }}-linux-arm64.tar.gz
