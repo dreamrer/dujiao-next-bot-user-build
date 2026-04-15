@@ -51,31 +51,43 @@ jobs:
 
       - name: Prepare release files
         run: |
-          mkdir -p release
-          cp tg-bot-linux-amd64 release/
-          cp tg-bot-linux-arm64 release/
-          cp bot-config.yml.example release/
-          cp docker-compose.bot.yml release/
-          cp build/bot/Dockerfile release/Dockerfile
-          cp DEPLOY.md release/
+          # amd64 包
+          mkdir -p release-amd64
+          cp tg-bot-linux-amd64 release-amd64/
+          cp bot-config.yml.example release-amd64/
+          cp docker-compose.bot.yml release-amd64/
+          cp DEPLOY.md release-amd64/
+          # amd64 Dockerfile
+          sed 's/tg-bot-linux-amd64/tg-bot-linux-amd64/' build/bot/Dockerfile > release-amd64/Dockerfile
 
-          cd release
+          # arm64 包
+          mkdir -p release-arm64
+          cp tg-bot-linux-arm64 release-arm64/
+          cp bot-config.yml.example release-arm64/
+          cp docker-compose.bot.yml release-arm64/
+          cp DEPLOY.md release-arm64/
+          # arm64 Dockerfile：替换二进制文件名
+          sed 's/tg-bot-linux-amd64/tg-bot-linux-arm64/' build/bot/Dockerfile > release-arm64/Dockerfile
+
+          # 打包
+          cd release-amd64
           tar -czf ../tg-bot-v${{ inputs.version }}-linux-amd64.tar.gz \
             tg-bot-linux-amd64 bot-config.yml.example docker-compose.bot.yml Dockerfile DEPLOY.md
+          cd ../release-arm64
           tar -czf ../tg-bot-v${{ inputs.version }}-linux-arm64.tar.gz \
             tg-bot-linux-arm64 bot-config.yml.example docker-compose.bot.yml Dockerfile DEPLOY.md
 
       - name: Checkout build repo
         uses: actions/checkout@v4
         with:
-          repository: dreamrer/dujiao-bot-bulid
+          repository: dreamrer/dujiao-next-bot-user-build
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
           path: build-repo
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          repository: dreamrer/dujiao-bot-bulid
+          repository: dreamrer/dujiao-next-bot-user-build
           token: ${{ secrets.PRIVATE_REPO_TOKEN }}
           tag_name: v${{ inputs.version }}
           name: TG Bot v${{ inputs.version }}
@@ -83,14 +95,23 @@ jobs:
             ## TG Bot v${{ inputs.version }}
 
             ### 下载
-            - `tg-bot-linux-amd64.tar.gz` - Linux 64位（大多数服务器）
+            - `tg-bot-linux-amd64.tar.gz` - Linux 64 位（大多数服务器）
             - `tg-bot-linux-arm64.tar.gz` - Linux ARM64
 
-            ### 部署步骤
+            ### 包内文件
+            - `tg-bot-linux-*` — Bot 可执行文件
+            - `bot-config.yml.example` — 配置文件模板
+            - `docker-compose.bot.yml` — Docker 编排文件
+            - `Dockerfile` — Docker 构建文件
+            - `DEPLOY.md` — **完整部署教程**
+
+            ### 快速开始
             1. 解压：`tar -xzf tg-bot-v${{ inputs.version }}-linux-amd64.tar.gz`
             2. 复制配置：`cp bot-config.yml.example bot-config.yml`
             3. 编辑 `bot-config.yml` 填入你的配置
-            4. 运行：`./tg-bot-linux-amd64 --config bot-config.yml`
+            4. 运行：`chmod +x tg-bot-linux-amd64 && ./tg-bot-linux-amd64`
+
+            详细部署步骤请查看包内 `DEPLOY.md`。
           files: |
             tg-bot-v${{ inputs.version }}-linux-amd64.tar.gz
             tg-bot-v${{ inputs.version }}-linux-arm64.tar.gz
